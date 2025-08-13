@@ -1,90 +1,437 @@
 (() => {
-  class AmbientSynth {
+  class RomanticPianoSynth {
     constructor(context) {
       this.context = context;
       this.masterGain = context.createGain();
       this.masterGain.gain.value = 0.0;
-      this.started = false; // 防止重复启动
-
+      this.started = false;
+      
+      // 创建更丰富的混响效果
+      this.reverb = this.createLushReverb();
+      this.reverbGain = context.createGain();
+      this.reverbGain.gain.value = 0.45; // 增加混响深度
+      
+      // 创建多重延迟效果，营造空间感
+      this.delay1 = context.createDelay(2.0);
+      this.delay1.delayTime.value = 0.25;
+      this.delay1Feedback = context.createGain();
+      this.delay1Feedback.gain.value = 0.15;
+      this.delay1Gain = context.createGain();
+      this.delay1Gain.gain.value = 0.12;
+      
+      this.delay2 = context.createDelay(2.0);
+      this.delay2.delayTime.value = 0.375;
+      this.delay2Feedback = context.createGain();
+      this.delay2Feedback.gain.value = 0.1;
+      this.delay2Gain = context.createGain();
+      this.delay2Gain.gain.value = 0.08;
+      
+      // 创建温暖的低通滤波器
       this.lowpass = context.createBiquadFilter();
       this.lowpass.type = 'lowpass';
-      this.lowpass.frequency.value = 1400;
+      this.lowpass.frequency.value = 4500; // 更亮一些
       this.lowpass.Q.value = 0.6;
-
-      this.lfo = context.createOscillator();
-      this.lfo.frequency.value = 0.07; // slow swell
-      this.lfoGain = context.createGain();
-      this.lfoGain.gain.value = 0.25; // depth
-
-      this.oscillators = [];
-      const freqs = [220.00, 277.18, 329.63]; // A, C#, E  (A major, airy)
-      for (const freq of freqs) {
-        const osc = context.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-
-        const gain = context.createGain();
-        gain.gain.value = 0.15 / freqs.length;
-
-        osc.connect(gain);
-        gain.connect(this.lowpass);
-
-        this.oscillators.push({ osc, gain });
+      
+      // 轻微的高通滤波，保持清晰度
+      this.highpass = context.createBiquadFilter();
+      this.highpass.type = 'highpass';
+      this.highpass.frequency.value = 60;
+      this.highpass.Q.value = 0.3;
+      
+      // 添加合唱效果，增加丰富度
+      this.chorus = this.createChorus();
+      this.chorusGain = context.createGain();
+      this.chorusGain.gain.value = 0.2;
+      
+      // 音频路由
+      this.masterGain.connect(this.highpass);
+      this.highpass.connect(this.lowpass);
+      this.lowpass.connect(context.destination);
+      
+      // 混响路由
+      this.lowpass.connect(this.reverbGain);
+      this.reverbGain.connect(this.reverb);
+      this.reverb.connect(context.destination);
+      
+      // 延迟效果路由
+      this.lowpass.connect(this.delay1Gain);
+      this.delay1Gain.connect(this.delay1);
+      this.delay1.connect(this.delay1Feedback);
+      this.delay1Feedback.connect(this.delay1);
+      this.delay1.connect(context.destination);
+      
+      this.lowpass.connect(this.delay2Gain);
+      this.delay2Gain.connect(this.delay2);
+      this.delay2.connect(this.delay2Feedback);
+      this.delay2Feedback.connect(this.delay2);
+      this.delay2.connect(context.destination);
+      
+      // 合唱效果路由
+      this.lowpass.connect(this.chorusGain);
+      this.chorusGain.connect(this.chorus.input);
+      this.chorus.output.connect(context.destination);
+      
+      // 更接近Yiruma风格的和弦进行（类似"River Flows in You"的和谐感）
+      this.chordProgression = [
+        [220.00, 261.63, 329.63, 440.00], // A minor (A, C, E, A) - 温柔开始
+        [246.94, 293.66, 369.99, 493.88], // B minor (B, D, F#, B) 
+        [293.66, 369.99, 440.00, 587.33], // D major (D, F#, A, D) - 明亮
+        [329.63, 415.30, 493.88, 659.25], // E major (E, G#, B, E)
+        [196.00, 261.63, 329.63, 392.00], // A minor (A, C, E, A) 低八度
+        [220.00, 277.18, 349.23, 440.00], // A7 (A, C#, E, G) - 过渡和弦
+        [293.66, 369.99, 440.00, 587.33], // D major (D, F#, A, D)
+        [220.00, 261.63, 329.63, 440.00], // A minor (A, C, E, A) - 回到主调
+      ];
+      
+      // 更接近Yiruma风格的柔美旋律线条
+      this.melody = [
+        // 第一段：温柔的开场
+        { note: 523.25, duration: 2.0, velocity: 0.28 }, // C5 - 轻柔开始
+        { note: 493.88, duration: 1.0, velocity: 0.25 }, // B4
+        { note: 440.00, duration: 1.5, velocity: 0.3 },  // A4
+        { note: 493.88, duration: 0.5, velocity: 0.22 }, // B4
+        { note: 523.25, duration: 3.0, velocity: 0.32 }, // C5 - 长音
+        
+        // 第二段：情感递进
+        { note: 587.33, duration: 1.5, velocity: 0.35 }, // D5 - 稍强
+        { note: 659.25, duration: 1.0, velocity: 0.33 }, // E5
+        { note: 587.33, duration: 0.75, velocity: 0.3 }, // D5
+        { note: 523.25, duration: 0.75, velocity: 0.28 }, // C5
+        { note: 493.88, duration: 2.5, velocity: 0.25 }, // B4 - 长音休止
+        
+        // 第三段：高潮部分
+        { note: 783.99, duration: 1.0, velocity: 0.4 },  // G5 - 高音亮点
+        { note: 698.46, duration: 0.75, velocity: 0.37 }, // F5
+        { note: 659.25, duration: 0.75, velocity: 0.35 }, // E5
+        { note: 587.33, duration: 1.5, velocity: 0.32 }, // D5
+        { note: 523.25, duration: 1.0, velocity: 0.3 },  // C5
+        { note: 493.88, duration: 1.0, velocity: 0.28 }, // B4
+        { note: 440.00, duration: 3.0, velocity: 0.25 }, // A4 - 温柔结束
+        
+        // 第四段：装饰性尾声
+        { note: 659.25, duration: 0.5, velocity: 0.2 },  // E5 - 很轻
+        { note: 587.33, duration: 0.5, velocity: 0.22 }, // D5
+        { note: 523.25, duration: 1.0, velocity: 0.25 }, // C5
+        { note: 440.00, duration: 2.0, velocity: 0.2 },  // A4 - 渐弱结束
+      ];
+      
+      // 添加琶音伴奏模式
+      this.arpeggioPattern = [0, 2, 1, 3, 2, 1]; // 和弦音符的演奏顺序
+      this.arpeggioIndex = 0;
+      this.nextArpeggioTime = 0;
+      
+      this.currentChordIndex = 0;
+      this.currentMelodyIndex = 0;
+      this.nextChordTime = 0;
+      this.nextMelodyTime = 0;
+      this.chordDuration = 8.0; // 更长的和弦持续时间，营造宁静感
+      this.tempo = 1.0; // Yiruma风格的中等节拍
+      
+      this.activeNotes = new Map();
+    }
+    
+    createChorus() {
+      // 创建合唱效果
+      const chorusInput = this.context.createGain();
+      const chorusDelay1 = this.context.createDelay(0.1);
+      const chorusDelay2 = this.context.createDelay(0.1);
+      const chorusLFO1 = this.context.createOscillator();
+      const chorusLFO2 = this.context.createOscillator();
+      const chorusDepth1 = this.context.createGain();
+      const chorusDepth2 = this.context.createGain();
+      const chorusMix = this.context.createGain();
+      const chorusOutput = this.context.createGain();
+      
+      chorusLFO1.frequency.value = 0.5;
+      chorusLFO2.frequency.value = 0.7;
+      chorusDepth1.gain.value = 0.002;
+      chorusDepth2.gain.value = 0.003;
+      chorusMix.gain.value = 0.5;
+      
+      // 连接LFO到延迟时间调制
+      chorusLFO1.connect(chorusDepth1);
+      chorusLFO2.connect(chorusDepth2);
+      chorusDepth1.connect(chorusDelay1.delayTime);
+      chorusDepth2.connect(chorusDelay2.delayTime);
+      
+      // 设置基础延迟时间
+      chorusDelay1.delayTime.value = 0.02;
+      chorusDelay2.delayTime.value = 0.03;
+      
+      // 连接音频路径
+      chorusInput.connect(chorusDelay1);
+      chorusInput.connect(chorusDelay2);
+      chorusDelay1.connect(chorusMix);
+      chorusDelay2.connect(chorusMix);
+      chorusMix.connect(chorusOutput);
+      
+      // 启动LFO
+      chorusLFO1.start();
+      chorusLFO2.start();
+      
+      // 返回输入和输出节点
+      return {
+        input: chorusInput,
+        output: chorusOutput
+      };
+    }
+    
+    createLushReverb() {
+      const convolver = this.context.createConvolver();
+      const length = this.context.sampleRate * 3.5; // 更长的混响时间
+      const impulse = this.context.createBuffer(2, length, this.context.sampleRate);
+      
+      for (let channel = 0; channel < 2; channel++) {
+        const channelData = impulse.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+          // 更复杂的衰减曲线，模拟大厅混响
+          const decay = Math.pow(1 - i / length, 1.5);
+          const earlyReflection = i < length * 0.1 ? Math.sin(i * 0.01) * 0.3 : 0;
+          channelData[i] = (Math.random() * 2 - 1) * decay * 0.15 + earlyReflection;
+        }
       }
-
-      // Subtle stereo shimmer using delay
-      this.delayL = context.createDelay(5.0);
-      this.delayR = context.createDelay(5.0);
-      this.delayL.delayTime.value = 0.22;
-      this.delayR.delayTime.value = 0.27;
-      this.feedback = context.createGain();
-      this.feedback.gain.value = 0.15;
-
-      const merger = context.createChannelMerger(2);
-      this.lowpass.connect(this.delayL);
-      this.lowpass.connect(this.delayR);
-      this.delayL.connect(merger, 0, 0);
-      this.delayR.connect(merger, 0, 1);
-      this.delayL.connect(this.feedback);
-      this.delayR.connect(this.feedback);
-      this.feedback.connect(this.lowpass);
-
-      // LFO modulates masterGain for breathing effect
-      this.lfo.connect(this.lfoGain);
-      this.lfoGain.connect(this.masterGain.gain);
-
-      merger.connect(this.masterGain);
-      this.masterGain.connect(context.destination);
+      
+      convolver.buffer = impulse;
+      return convolver;
+    }
+    
+    createRomanticPianoNote(frequency, startTime, duration, velocity = 0.3) {
+      // 创建更真实的钢琴音色，模拟Yiruma的钢琴演奏风格
+      
+      // 确保时间参数有效，防止RangeError
+      const now = this.context.currentTime;
+      const validStartTime = Math.max(startTime, now + 0.01); // 至少比当前时间晚0.01秒
+      const validDuration = Math.max(duration, 0.1); // 至少0.1秒的持续时间
+      
+      // 使用多个振荡器模拟真实钢琴的复杂音色
+      // 基频 - 使用三角波模拟钢琴的温暖基音
+      const fundamental = this.context.createOscillator();
+      fundamental.type = 'triangle'; // 三角波比锯齿波更接近钢琴音色
+      fundamental.frequency.value = frequency;
+      
+      // 重要谐波 - 钢琴的特征谐波
+      const harmonic2 = this.context.createOscillator();
+      harmonic2.type = 'sine';
+      harmonic2.frequency.value = frequency * 2;
+      
+      const harmonic3 = this.context.createOscillator();
+      harmonic3.type = 'sine';
+      harmonic3.frequency.value = frequency * 3;
+      
+      const harmonic4 = this.context.createOscillator();
+      harmonic4.type = 'sine';
+      harmonic4.frequency.value = frequency * 4;
+      
+      // 添加轻微的不和谐谐波，增加真实感
+      const subHarmonic = this.context.createOscillator();
+      subHarmonic.type = 'sine';
+      subHarmonic.frequency.value = frequency * 0.5; // 低八度
+      
+      // 更细腻的颤音，模拟手指在琴键上的自然颤动
+      const vibrato = this.context.createOscillator();
+      vibrato.type = 'sine';
+      vibrato.frequency.value = 2.8; // 更慢更自然的颤音
+      const vibratoGain = this.context.createGain();
+      vibratoGain.gain.value = 0.8; // 轻微的频率调制
+      
+      // 音色调制 - 模拟钢琴的音色变化和共鸣
+      const tremolo = this.context.createOscillator();
+      tremolo.type = 'sine';
+      tremolo.frequency.value = 4.5; // 温柔的音量调制
+      const tremoloGain = this.context.createGain();
+      tremoloGain.gain.value = 0.015; // 非常轻微的音量调制
+      
+      // 连接颤音
+      vibrato.connect(vibratoGain);
+      vibratoGain.connect(fundamental.frequency);
+      vibratoGain.connect(harmonic2.frequency);
+      
+      tremolo.connect(tremoloGain);
+      
+      // 为每个振荡器创建独立的增益控制
+      const fundamentalGain = this.context.createGain();
+      const harmonic2Gain = this.context.createGain();
+      const harmonic3Gain = this.context.createGain();
+      const harmonic4Gain = this.context.createGain();
+      const subHarmonicGain = this.context.createGain();
+      
+      // 钢琴式的音色平衡 - 基音突出，谐波递减
+      fundamentalGain.gain.value = velocity * 1.0;   // 基音最强
+      harmonic2Gain.gain.value = velocity * 0.6;     // 八度谐波较强
+      harmonic3Gain.gain.value = velocity * 0.25;    // 五度谐波中等
+      harmonic4Gain.gain.value = velocity * 0.1;     // 高谐波较弱
+      subHarmonicGain.gain.value = velocity * 0.15;  // 低音共鸣
+      
+      // 添加音量调制
+      tremoloGain.connect(fundamentalGain.gain);
+      tremoloGain.connect(harmonic2Gain.gain);
+      
+      // 连接音频图
+      fundamental.connect(fundamentalGain);
+      harmonic2.connect(harmonic2Gain);
+      harmonic3.connect(harmonic3Gain);
+      harmonic4.connect(harmonic4Gain);
+      subHarmonic.connect(subHarmonicGain);
+      
+      fundamentalGain.connect(this.masterGain);
+      harmonic2Gain.connect(this.masterGain);
+      harmonic3Gain.connect(this.masterGain);
+      harmonic4Gain.connect(this.masterGain);
+      subHarmonicGain.connect(this.masterGain);
+      
+      // 钢琴风格的 ADSR 包络 - 快速起音，自然衰减
+      const attackTime = 0.08;      // 钢琴的快速起音
+      const decayTime = 0.3;        // 较快的初始衰减
+      const sustainLevel = velocity * 0.4; // 较低的持续音量
+      const releaseTime = Math.min(validDuration * 0.6, 2.5); // 自然的释放，不超过音符长度的60%
+      
+      // 基频包络 - 钢琴风格的动态
+      fundamentalGain.gain.setValueAtTime(0, validStartTime);
+      fundamentalGain.gain.exponentialRampToValueAtTime(velocity * 1.0, validStartTime + attackTime);
+      fundamentalGain.gain.exponentialRampToValueAtTime(sustainLevel, validStartTime + attackTime + decayTime);
+      fundamentalGain.gain.setValueAtTime(sustainLevel, validStartTime + validDuration - releaseTime);
+      fundamentalGain.gain.exponentialRampToValueAtTime(0.001, validStartTime + validDuration);
+      
+      // 谐波包络 - 不同的衰减特性模拟真实钢琴
+      harmonic2Gain.gain.setValueAtTime(0, validStartTime);
+      harmonic2Gain.gain.exponentialRampToValueAtTime(velocity * 0.6, validStartTime + attackTime * 1.1);
+      harmonic2Gain.gain.exponentialRampToValueAtTime(sustainLevel * 0.6, validStartTime + attackTime + decayTime);
+      harmonic2Gain.gain.setValueAtTime(sustainLevel * 0.6, validStartTime + validDuration - releaseTime * 0.8);
+      harmonic2Gain.gain.exponentialRampToValueAtTime(0.001, validStartTime + validDuration);
+      
+      harmonic3Gain.gain.setValueAtTime(0, validStartTime);
+      harmonic3Gain.gain.exponentialRampToValueAtTime(velocity * 0.25, validStartTime + attackTime * 0.9);
+      harmonic3Gain.gain.exponentialRampToValueAtTime(sustainLevel * 0.3, validStartTime + attackTime + decayTime * 0.7);
+      harmonic3Gain.gain.setValueAtTime(sustainLevel * 0.3, validStartTime + validDuration - releaseTime * 1.2);
+      harmonic3Gain.gain.exponentialRampToValueAtTime(0.001, validStartTime + validDuration);
+      
+      harmonic4Gain.gain.setValueAtTime(0, validStartTime);
+      harmonic4Gain.gain.exponentialRampToValueAtTime(velocity * 0.1, validStartTime + attackTime * 0.8);
+      harmonic4Gain.gain.exponentialRampToValueAtTime(sustainLevel * 0.15, validStartTime + attackTime + decayTime * 0.5);
+      harmonic4Gain.gain.setValueAtTime(sustainLevel * 0.15, validStartTime + validDuration - releaseTime * 1.5);
+      harmonic4Gain.gain.exponentialRampToValueAtTime(0.001, validStartTime + validDuration);
+      
+      // 低频共鸣 - 钢琴的琴体共鸣效果
+      subHarmonicGain.gain.setValueAtTime(0, validStartTime);
+      subHarmonicGain.gain.exponentialRampToValueAtTime(velocity * 0.15, validStartTime + attackTime * 1.5);
+      subHarmonicGain.gain.exponentialRampToValueAtTime(sustainLevel * 0.2, validStartTime + attackTime + decayTime * 1.3);
+      subHarmonicGain.gain.setValueAtTime(sustainLevel * 0.2, validStartTime + validDuration - releaseTime * 0.7);
+      subHarmonicGain.gain.exponentialRampToValueAtTime(0.001, validStartTime + validDuration);
+      
+      // 启动所有振荡器
+      vibrato.start(validStartTime);
+      tremolo.start(validStartTime);
+      fundamental.start(validStartTime);
+      harmonic2.start(validStartTime);
+      harmonic3.start(validStartTime);
+      harmonic4.start(validStartTime);
+      subHarmonic.start(validStartTime);
+      
+      // 停止所有振荡器
+      vibrato.stop(validStartTime + validDuration);
+      tremolo.stop(validStartTime + validDuration);
+      fundamental.stop(validStartTime + validDuration);
+      harmonic2.stop(validStartTime + validDuration);
+      harmonic3.stop(validStartTime + validDuration);
+      harmonic4.stop(validStartTime + validDuration);
+      subHarmonic.stop(validStartTime + validDuration);
+      
+      return { fundamental, harmonic2, harmonic3, harmonic4, subHarmonic, vibrato, tremolo };
+    }
+    
+    playChord(chordNotes, startTime, duration) {
+      chordNotes.forEach((frequency, index) => {
+        // 更细腻的音量控制
+        const velocity = 0.08 + (index === 0 ? 0.04 : index === 2 ? 0.03 : 0.02);
+        this.createRomanticPianoNote(frequency, startTime, duration, velocity);
+      });
+    }
+    
+    playMelodyNote(frequency, startTime, duration, velocity = 0.35) {
+      this.createRomanticPianoNote(frequency, startTime, duration, velocity);
+    }
+    
+    playArpeggio(chordNotes, startTime) {
+      const noteIndex = this.arpeggioPattern[this.arpeggioIndex % this.arpeggioPattern.length];
+      if (noteIndex < chordNotes.length) {
+        const frequency = chordNotes[noteIndex];
+        this.createRomanticPianoNote(frequency, startTime, 0.8, 0.12);
+      }
+      this.arpeggioIndex++;
+    }
+    
+    scheduleMusic() {
+      const now = this.context.currentTime;
+      const scheduleAhead = 8.0; // 提前更多时间安排音符
+      
+      // 安排和弦 - 更柔和的节奏
+      while (this.nextChordTime < now + scheduleAhead) {
+        const chord = this.chordProgression[this.currentChordIndex];
+        this.playChord(chord, this.nextChordTime, this.chordDuration);
+        
+        this.nextChordTime += this.chordDuration;
+        this.currentChordIndex = (this.currentChordIndex + 1) % this.chordProgression.length;
+      }
+      
+      // 安排琶音伴奏
+      while (this.nextArpeggioTime < now + scheduleAhead) {
+        const chord = this.chordProgression[this.currentChordIndex % this.chordProgression.length];
+        this.playArpeggio(chord, this.nextArpeggioTime);
+        
+        this.nextArpeggioTime += 0.4; // 琶音间隔
+      }
+      
+      // 安排主旋律 - 更有表情的演奏
+      while (this.nextMelodyTime < now + scheduleAhead) {
+        const melodyNote = this.melody[this.currentMelodyIndex];
+        const noteDuration = melodyNote.duration * this.tempo;
+        const velocity = melodyNote.velocity || 0.35;
+        
+        this.playMelodyNote(melodyNote.note, this.nextMelodyTime + 2.0, noteDuration, velocity);
+        
+        this.nextMelodyTime += noteDuration;
+        this.currentMelodyIndex = (this.currentMelodyIndex + 1) % this.melody.length;
+      }
     }
 
     start() {
-      if (this.started) return; // 防止重复启动
+      if (this.started) return;
       this.started = true;
       
       const now = this.context.currentTime;
-      for (const { osc } of this.oscillators) {
-        try {
-          osc.start(now + 0.01);
-        } catch (e) {
-          console.warn('振荡器启动失败:', e);
-        }
-      }
-      try {
-        this.lfo.start(now + 0.02);
-      } catch (e) {
-        console.warn('LFO启动失败:', e);
-      }
-      // fade in
+      this.nextChordTime = now + 0.5;
+      this.nextMelodyTime = now + 2.5;
+      this.nextArpeggioTime = now + 1.0;
+      
+      // 更柔和的淡入效果
       this.masterGain.gain.cancelScheduledValues(0);
-      this.masterGain.gain.linearRampToValueAtTime(0.0, now);
-      this.masterGain.gain.linearRampToValueAtTime(0.7, now + 2.2);
+      this.masterGain.gain.setValueAtTime(0.0, now);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.5, now + 4.0);
+      
+      // 开始音乐调度
+      this.scheduleMusic();
+      
+      // 定期调度新的音符
+      this.schedulerInterval = setInterval(() => {
+        if (this.started) {
+          this.scheduleMusic();
+        }
+      }, 1000);
     }
 
     stop() {
+      if (!this.started) return;
+      this.started = false;
+      
       const now = this.context.currentTime;
       this.masterGain.gain.cancelScheduledValues(0);
-      this.masterGain.gain.linearRampToValueAtTime(this.masterGain.gain.value, now);
-      this.masterGain.gain.linearRampToValueAtTime(0.0, now + 0.9);
+      this.masterGain.gain.exponentialRampToValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
+      
+      if (this.schedulerInterval) {
+        clearInterval(this.schedulerInterval);
+        this.schedulerInterval = null;
+      }
     }
   }
 
@@ -149,7 +496,7 @@
       if (this.context.state === 'suspended') {
         try { await this.context.resume(); } catch {}
       }
-      this.synth = new AmbientSynth(this.context);
+      this.synth = new RomanticPianoSynth(this.context);
       
       // HTMLAudio for track
       this.audioEl = new Audio();
@@ -166,13 +513,8 @@
       this.audioEl.crossOrigin = 'anonymous';
       this.audioEl.volume = 0.85;
       
-      // 云环境下默认使用合成器，避免网络问题
-      if (this.isCloudEnvironment && this.networkQuality === 'slow') {
-        console.log('检测到云环境且网络较慢，默认使用合成器模式');
-        this.currentMode = 'ambient';
-      } else {
-        this.setTrack('yiruma');
-      }
+      // 优先尝试原始音乐，即使在云环境下
+      this.setTrack('yiruma');
     }
 
     // 专门的音频加载等待方法，支持重试和更长超时
@@ -256,14 +598,10 @@
     async toggle() {
       if (!this.context) await this.init();
       if (!this.playing) {
-        if (this.currentMode === 'ambient') {
-          if (!this.synthStarted) {
-            this.synth.start();
-            this.synthStarted = true;
-          }
-        } else {
+        // 优先尝试播放原始音乐（Yiruma），如果失败再使用合成器
+        if (this.currentMode === 'yiruma') {
           try {
-            console.log('尝试播放音频，当前状态:', this.audioEl.readyState, this.audioEl.src);
+            console.log('尝试播放 Yiruma 音乐，当前状态:', this.audioEl.readyState, this.audioEl.src);
             
             // 如果音频还没加载完成，等待一下
             if (this.audioEl.readyState < 2) {
@@ -272,46 +610,52 @@
             }
             
             await this.audioEl.play();
-            console.log('音频播放成功');
+            console.log('Yiruma 音乐播放成功');
+            this.playing = true;
+            return true;
           } catch (e) {
-            console.error('音频播放失败:', e);
+            console.error('Yiruma 音乐播放失败:', e);
             // 根据不同错误类型提供更精确的处理
             if (e.name === 'NotAllowedError') {
               if (this.onError) this.onError('音乐播放被浏览器拦截，请再点一次"音乐"按钮');
               return false;
-            } else if (e.name === 'NotSupportedError') {
-              if (this.onError) this.onError('音频格式不支持，已切换到合成器音景');
-            } else if (e.message && e.message.includes('音频加载超时')) {
-              if (this.onError) this.onError('网络较慢，音频加载超时，已切换到合成器音景');
-            } else if (e.name === 'AbortError') {
-              if (this.onError) this.onError('音频加载被中断，已切换到合成器音景');
             } else {
-              // 网络错误、CORS错误等
-              const isNetworkError = e.message && (
+              // 其他错误则自动切换到合成器模式
+              let errorMessage = '网络或音频文件问题，已切换到浪漫钢琴合成器';
+              if (e.name === 'NotSupportedError') {
+                errorMessage = '音频格式不支持，已切换到浪漫钢琴合成器';
+              } else if (e.message && e.message.includes('音频加载超时')) {
+                errorMessage = '网络较慢，音频加载超时，已切换到浪漫钢琴合成器';
+              } else if (e.name === 'AbortError') {
+                errorMessage = '音频加载被中断，已切换到浪漫钢琴合成器';
+              } else if (e.message && (
                 e.message.includes('fetch') ||
                 e.message.includes('network') ||
                 e.message.includes('CORS') ||
                 e.message.includes('Failed to load')
-              );
-              if (isNetworkError) {
-                if (this.onError) this.onError('网络连接问题或跨域限制，已切换到合成器音景');
-              } else {
-                if (this.onError) this.onError('音频播放出现问题，已切换到合成器音景');
+              )) {
+                errorMessage = '网络连接问题或跨域限制，已切换到浪漫钢琴合成器';
               }
+              
+              if (this.onError) this.onError(errorMessage);
+              
+              // 自动切换到合成器模式
+              console.log('切换到浪漫钢琴合成器模式');
+              this.currentMode = 'ambient';
+              // 继续执行合成器启动逻辑
             }
-            
-            // 自动切换到合成器模式
-            console.log('切换到合成器模式');
-            this.currentMode = 'ambient';
-            if (!this.synthStarted) {
-              this.synth.start();
-              this.synthStarted = true;
-            }
-            this.playing = true;
-            return true;
           }
         }
-        this.playing = true; return true;
+        
+        // 启动合成器（ambient模式或从yiruma模式fallback过来的）
+        if (this.currentMode === 'ambient') {
+          if (!this.synthStarted) {
+            this.synth.start();
+            this.synthStarted = true;
+          }
+          this.playing = true;
+          return true;
+        }
       } else {
         if (this.currentMode === 'ambient') this.synth.stop();
         else { try { this.audioEl.pause(); } catch {} }
@@ -338,9 +682,9 @@
         const tryNext = () => {
           if (idx >= candidates.length) {
             // 所有候选源都失败，切换到合成器
-            console.warn('所有音频源都加载失败，切换到合成器模式');
+            console.warn('所有音频源都加载失败，切换到浪漫钢琴合成器模式');
             this.currentMode = 'ambient';
-            if (this.onError) this.onError('音频文件无法加载，已切换到合成器音景');
+            if (this.onError) this.onError('音频文件无法加载，已切换到浪漫钢琴合成器');
             return;
           }
           
@@ -402,5 +746,3 @@
 
   window.AudioManager = new AudioManagerCls();
 })();
-
-
