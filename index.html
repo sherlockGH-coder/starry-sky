@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0c0c2c" />
+    <title>她的专属星空 · Happy Birthday</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Inter:wght@300;400;600&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <canvas id="sky" aria-label="星空画布"></canvas>
+
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">✧</span>
+        <span>她的专属星空</span>
+      </div>
+      <div class="controls">
+        <label class="control">
+          <span>星座</span>
+          <select id="zodiac">
+            <option value="Aries">白羊座 Aries</option>
+            <option value="Taurus">金牛座 Taurus</option>
+            <option value="Gemini">双子座 Gemini</option>
+            <option value="Cancer">巨蟹座 Cancer</option>
+            <option value="Leo" selected>狮子座 Leo</option>
+            <option value="Virgo">处女座 Virgo</option>
+            <option value="Libra">天秤座 Libra</option>
+            <option value="Scorpio">天蝎座 Scorpio</option>
+            <option value="Sagittarius">射手座 Sagittarius</option>
+            <option value="Capricorn">摩羯座 Capricorn</option>
+            <option value="Aquarius">水瓶座 Aquarius</option>
+            <option value="Pisces">双鱼座 Pisces</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>曲目</span>
+          <select id="trackSelect">
+            <option value="yiruma" selected>Yiruma - River Flows in You</option>
+            <option value="ambient">合成器 Ambient</option>
+          </select>
+        </label>
+        <div class="moods" role="group" aria-label="流星雨风格">
+          <button class="btn btn-pill active" data-mood="gentle">温柔</button>
+          <button class="btn btn-pill" data-mood="grand">盛大</button>
+          <button class="btn btn-pill" data-mood="aurora">极光</button>
+        </div>
+        <button id="musicToggle" class="btn" aria-label="切换音乐">♪ 音乐</button>
+      </div>
+    </div>
+
+    <div id="hint" class="hint">拖动探索 · 双击点亮新星 · 长按放一盏愿望灯 · 点中流星收集爱心环</div>
+
+    <div id="typewriter" class="typewriter hidden" aria-live="polite"></div>
+
+    <div id="tooltip" class="tooltip hidden" role="dialog" aria-live="polite"></div>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="overlay" class="overlay">
+      <div class="overlay-card">
+        <div class="overlay-title">为你点亮一整片星空</div>
+        <div class="overlay-sub">Happy Birthday</div>
+        <button id="enterBtn" class="btn btn-primary">点击进入星空</button>
+        <div class="overlay-tip">开启后可播放一段柔和的背景乐</div>
+      </div>
+    </div>
+
+    <script src="./audio.js" defer></script>
+    <script src="./script.js" defer></script>
+  </body>
+  </html>
+
+
